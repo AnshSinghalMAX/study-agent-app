@@ -105,55 +105,68 @@ export default function Home() {
 
     appendMessage(userEntry)
 
-    const detectResponse = await fetch('/api/detect-concept', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userMessage })
-    })
-
-    if (!detectResponse.ok) {
-      setErrorMessage('Failed to detect concept. Please try again.')
-      setIsSending(false)
-      return
-    }
-
-    const detectData = await detectResponse.json()
-    const subject = typeof detectData.subject === 'string' ? detectData.subject.trim() : ''
-    const concept = typeof detectData.concept === 'string' ? detectData.concept.trim() : ''
-
     const assistantId = `assistant-${Date.now()}`
     appendMessage({
       id: assistantId,
       role: 'assistant',
       text: '',
-      subject,
-      concept,
       status: 'pending',
       saveStatus: 'idle'
     })
 
-    const chatResponse = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userMessage, subject, concept })
-    })
-
-    if (!chatResponse.ok || !chatResponse.body) {
-      updateMessage(assistantId, (message) => ({
-        ...message,
-        text: 'Sorry, something went wrong while fetching the response.',
-        status: 'error'
-      }))
-      setErrorMessage('Failed to load chat response. Please try again.')
-      setIsSending(false)
-      return
-    }
-
-    const reader = chatResponse.body.getReader()
-    const decoder = new TextDecoder()
-    let assistantText = ''
-
     try {
+      const detectResponse = await fetch('/api/detect-concept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userMessage })
+      })
+
+      if (!detectResponse.ok) {
+        const errorText = await detectResponse.text().catch(() => '')
+        setErrorMessage(
+          errorText
+            ? `Concept detection failed: ${errorText}`
+            : 'Failed to detect concept. Please try again.'
+        )
+        updateMessage(assistantId, (message) => ({
+          ...message,
+          text: 'Concept detection failed. Please try again.',
+          status: 'error'
+        }))
+        return
+      }
+
+      const detectData = await detectResponse.json()
+      const subject = typeof detectData.subject === 'string' ? detectData.subject.trim() : ''
+      const concept = typeof detectData.concept === 'string' ? detectData.concept.trim() : ''
+
+      updateMessage(assistantId, (message) => ({ ...message, subject, concept }))
+
+      const chatResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userMessage, subject, concept })
+      })
+
+      if (!chatResponse.ok || !chatResponse.body) {
+        const errorText = await chatResponse.text().catch(() => '')
+        updateMessage(assistantId, (message) => ({
+          ...message,
+          text: 'Sorry, something went wrong while fetching the response.',
+          status: 'error'
+        }))
+        setErrorMessage(
+          errorText
+            ? `Chat response failed: ${errorText}`
+            : 'Failed to load chat response. Please try again.'
+        )
+        return
+      }
+
+      const reader = chatResponse.body.getReader()
+      const decoder = new TextDecoder()
+      let assistantText = ''
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -163,12 +176,13 @@ export default function Home() {
 
       updateMessage(assistantId, (message) => ({ ...message, text: assistantText, status: 'done' }))
     } catch (error) {
+      console.error('Send error:', error)
       updateMessage(assistantId, (message) => ({
         ...message,
-        text: assistantText || 'Failed to read response stream.',
+        text: 'Failed to send your message. Please try again.',
         status: 'error'
       }))
-      setErrorMessage('Error reading the streamed response.')
+      setErrorMessage('Failed to send your message. Please try again.')
     } finally {
       setIsSending(false)
     }
