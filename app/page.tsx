@@ -121,30 +121,21 @@ export default function Home() {
         body: JSON.stringify({ userMessage })
       })
 
-      if (!detectResponse.ok) {
-        const errorText = await detectResponse.text().catch(() => '')
-        setErrorMessage(
-          errorText
-            ? `Concept detection failed: ${errorText}`
-            : 'Failed to detect concept. Please try again.'
-        )
-        updateMessage(assistantId, (message) => ({
-          ...message,
-          text: 'Concept detection failed. Please try again.',
-          status: 'error'
-        }))
-        return
-      }
+    let subject = ''
+    let concept = ''
 
-      const detectData = await detectResponse.json()
-      const subject = typeof detectData.subject === 'string' ? detectData.subject.trim() : ''
-      const concept = typeof detectData.concept === 'string' ? detectData.concept.trim() : ''
-
-      updateMessage(assistantId, (message) => ({ ...message, subject, concept }))
-
-      const chatResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    if (detectResponse.ok) {
+      const detectData = await detectResponse.json().catch(() => ({ subject: '', concept: '' }))
+      subject = typeof detectData.subject === 'string' ? detectData.subject.trim() : ''
+      concept = typeof detectData.concept === 'string' ? detectData.concept.trim() : ''
+    } else {
+      const errorText = await detectResponse.text().catch(() => '')
+      setErrorMessage(
+        errorText
+          ? `Concept detection failed: ${errorText}`
+          : 'Failed to detect concept. Sending without concept context.'
+      )
+    }
         body: JSON.stringify({ userMessage, subject, concept })
       })
 

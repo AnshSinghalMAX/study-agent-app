@@ -38,13 +38,16 @@ export async function POST(request: NextRequest) {
   let parsed: { subject: string; concept: string } = { subject: '', concept: '' }
 
   try {
-    const json = JSON.parse(rawText.trim())
+    const jsonStringMatch = rawText.match(/\{[\s\S]*\}/)
+    const jsonText = jsonStringMatch ? jsonStringMatch[0] : rawText.trim()
+    const json = JSON.parse(jsonText)
 
     if (typeof json === 'object' && json !== null) {
       parsed.subject = typeof json.subject === 'string' ? json.subject : ''
       parsed.concept = typeof json.concept === 'string' ? json.concept : ''
     }
-  } catch (_error) {
+  } catch (error) {
+    console.error('Concept detection parse failed:', rawText, error)
     parsed = { subject: '', concept: '' }
   }
 
