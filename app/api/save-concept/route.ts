@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
           notes,
           last_updated: now
         },
-        { onConflict: ['subject', 'concept'] }
+        { onConflict: 'subject,concept' }
       )
 
     if (error) {
